@@ -1,0 +1,21 @@
+# Copy this file to terraform.tfvars and adjust values as needed
+# DO NOT commit terraform.tfvars to version control
+
+aws_region = "us-east-1"
+
+web_acl_name        = "php2shell-rce-mitigation-acl"
+web_acl_description = "Web ACL to apply edge-level mitigations for RCE vulnerabilities CVE-2026-109618 and CVE-2026-109619"
+web_acl_scope       = "REGIONAL"  # Use "CLOUDFRONT" for CloudFront distributions (must be in us-east-1)
+
+enable_cloudwatch_metrics = true
+enable_sampled_requests   = true
+
+metric_name   = "Php2ShellMitigationMetric"
+rule_priority = 1
+
+tags = {
+  Environment = "production"
+  Project     = "security-php2shell-mitigation"
+  ManagedBy   = "terraform"
+  Owner       = "security-team"
+}

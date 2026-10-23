@@ -1,0 +1,50 @@
+# Terraform files
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
+.terraform.d/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+*.iml
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+.gitkeep
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+*.out
+
+# Sensitive files
+*.key
+*.pem
+*.tfvars
+!terraform.tfvars.example
+secrets/
+.env
+.env.local
+terraform/terraform.tfvars
+
+# Misc
+node_modules/
+dist/
+build/
+*.zip
