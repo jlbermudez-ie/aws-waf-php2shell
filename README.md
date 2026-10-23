@@ -238,8 +238,6 @@ fatal_error_backtraces = 0
 ```
 aws-waf-php2shell/
 ├── README.md                      # This file
-├── docs/
-│   └── LINKEDIN_POST.md          # Original LinkedIn post
 ├── terraform/
 │   ├── main.tf                   # WAF Web ACL configuration
 │   ├── variables.tf              # Variable definitions
