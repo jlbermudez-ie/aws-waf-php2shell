@@ -10,8 +10,17 @@ web_acl_scope       = "REGIONAL"  # Use "CLOUDFRONT" for CloudFront distribution
 enable_cloudwatch_metrics = true
 enable_sampled_requests   = true
 
-metric_name   = "Php2ShellMitigationMetric"
-rule_priority = 1
+metric_name = "Php2ShellMitigationMetric"
+
+# Start in COUNT, review sampled requests, then switch to BLOCK
+rule_action = "COUNT"
+
+php_managed_rule_group_version = "Version_2.3"
+
+# Both rules break uploads when set to BLOCK. Disable them on apps that accept file uploads.
+enable_oversize_body_block = true
+max_body_size_bytes        = 8192
+enable_multipart_block     = true
 
 tags = {
   Environment = "production"

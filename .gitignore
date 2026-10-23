@@ -12,6 +12,7 @@ terraform.rc
 # IDE / Editor
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~

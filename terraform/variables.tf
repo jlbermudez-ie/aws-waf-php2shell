@@ -39,15 +39,39 @@ variable "metric_name" {
   default     = "Php2ShellMitigationMetric"
 }
 
-variable "rule_priority" {
-  description = "Priority for the RCE blocking rule (lower = higher priority)"
-  type        = number
-  default     = 1
+variable "rule_action" {
+  description = "Action for every PHP2Shell rule. Start with COUNT, review matches, then switch to BLOCK"
+  type        = string
+  default     = "COUNT"
 
   validation {
-    condition     = var.rule_priority >= 0
-    error_message = "rule_priority must be a non-negative integer"
+    condition     = contains(["COUNT", "BLOCK"], var.rule_action)
+    error_message = "rule_action must be either COUNT or BLOCK"
   }
+}
+
+variable "php_managed_rule_group_version" {
+  description = "Version of AWSManagedRulesPHPRuleSet. Must be Version_2.3 or later to include PHP2Shell_BODY"
+  type        = string
+  default     = "Version_2.3"
+}
+
+variable "enable_oversize_body_block" {
+  description = "Add a rule matching request bodies larger than max_body_size_bytes (CVE-2026-109618). Breaks large uploads"
+  type        = bool
+  default     = true
+}
+
+variable "max_body_size_bytes" {
+  description = "Body size threshold for the oversize body rule. AWS WAF inspects only the first 8 KB of the body on ALB"
+  type        = number
+  default     = 8192
+}
+
+variable "enable_multipart_block" {
+  description = "Add a rule matching every multipart request. Breaks file uploads and multipart forms"
+  type        = bool
+  default     = true
 }
 
 variable "aws_region" {

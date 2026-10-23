@@ -1,318 +1,116 @@
-TESTING PAYLOADS - FOR AUTHORIZED TESTING ONLY
-================================================
+SIGNATURE TEST REQUESTS - FOR AUTHORIZED TESTING ONLY
+=====================================================
 
-⚠️ IMPORTANT: Only use these payloads on environments you own and have authorization to test.
-   Unauthorized security testing is illegal.
+IMPORTANT: Only send these requests to environments you own and have authorization to test.
 
-This file contains example payloads that should be BLOCKED by the WAF rules.
+These requests carry the signatures the WAF rules look for. They do NOT contain a PHP2Shell
+exploit and cannot trigger CVE-2026-109618 or CVE-2026-109619. They only confirm that each
+rule matches.
 
-═══════════════════════════════════════════════════════════════════════════════
+In COUNT mode (rule_action = "COUNT") every request returns normally; confirm matches with
+sampled requests. In BLOCK mode matching requests return 403 Forbidden.
 
-## Basic Payload Detection Tests
+===============================================================================
 
-### system() Detection
+## Test cases
 
-1. Direct execution:
-   GET /api/cmd?action=system(whoami)
-   Expected: BLOCKED
+Set your target first:
 
-2. URL-encoded:
-   GET /api/cmd?action=system%28whoami%29
-   Expected: BLOCKED
+    DOMAIN="https://your-domain.com"
 
-3. Case variation:
-   GET /api/cmd?action=System(whoami)
-   Expected: BLOCKED
+### 1. php2shell-UserAgent-Block
 
-4. Mixed case (encoded):
-   GET /api/cmd?action=SyStEm%28whoami%29
-   Expected: BLOCKED
+    curl -s -o /dev/null -w "%{http_code}\n" -A "php2shell-test" "$DOMAIN/"
+    # Expected: match (403 in BLOCK mode)
 
-5. With arguments:
-   GET /search.php?q=system(id)&type=advanced
-   Expected: BLOCKED
+    curl -s -o /dev/null -w "%{http_code}\n" -A "PHP2Shell/1.0" "$DOMAIN/"
+    # Expected: match (LOWERCASE transformation)
 
-### passthru() Detection
+### 2. php2shell-Exploit-Boundary-Block
 
-1. Direct execution:
-   GET /api/cmd?func=passthru(ls)
-   Expected: BLOCKED
+    curl -s -o /dev/null -w "%{http_code}\n" \
+      -H "Content-Type: multipart/form-data; boundary=B7kQpoc618" \
+      --data-binary $'--B7kQpoc618\r\nContent-Disposition: form-data; name="a"\r\n\r\n1\r\n--B7kQpoc618--\r\n' \
+      "$DOMAIN/"
+    # Expected: match
 
-2. URL-encoded:
-   GET /api/cmd?func=passthru%28ls%29
-   Expected: BLOCKED
+    curl -s -o /dev/null -w "%{http_code}\n" \
+      -H "Content-Type: multipart/form-data; boundary=B7kQpoc619" \
+      --data-binary $'--B7kQpoc619\r\nContent-Disposition: form-data; name="a"\r\n\r\n1\r\n--B7kQpoc619--\r\n' \
+      "$DOMAIN/"
+    # Expected: match
 
-3. Case variation:
-   GET /api/cmd?func=Passthru(ls)
-   Expected: BLOCKED
+### 3. php2shell-Upload-Progress-Block
 
-4. With pipes:
-   GET /api/cmd?cmd=passthru(whoami | id)
-   Expected: BLOCKED
+    curl -s -o /dev/null -w "%{http_code}\n" \
+      -b "PHPSESSID=test" -F "PHP_SESSION_UPLOAD_PROGRESS=test" "$DOMAIN/"
+    # Expected: match (POST + field + session cookie)
 
-═══════════════════════════════════════════════════════════════════════════════
+    curl -s -o /dev/null -w "%{http_code}\n" \
+      -F "PHP_SESSION_UPLOAD_PROGRESS=test" -F "PHPSESSID=test" "$DOMAIN/"
+    # Expected: match (session ID in the body)
 
-## Test Cases Using curl
+    curl -s -o /dev/null -w "%{http_code}\n" \
+      -F "PHP_SESSION_UPLOAD_PROGRESS=test" "$DOMAIN/"
+    # Expected: no match from this rule (no session ID); rule 5 still matches if enabled
 
-### Test 1: Basic system() Call
-```bash
-curl -v "http://your-domain.com/api/cmd?action=system(whoami)"
-# Expected: 403 Forbidden
-# CloudWatch: Check for BlockedRequests metric increase
-```
+### 4. php2shell-Oversize-Body-Block (if enable_oversize_body_block = true)
 
-### Test 2: URL-Encoded Payload
-```bash
-curl -v "http://your-domain.com/api/cmd?action=system%28whoami%29"
-# Expected: 403 Forbidden
-# Note: Even though encoded, the URL_DECODE transformation will detect it
-```
+    head -c 10000 /dev/zero | tr '\0' 'a' | \
+      curl -s -o /dev/null -w "%{http_code}\n" --data-binary @- "$DOMAIN/"
+    # Expected: match (body > 8192 bytes)
 
-### Test 3: Mixed Case
-```bash
-curl -v "http://your-domain.com/api/cmd?action=System(whoami)"
-# Expected: 403 Forbidden
-# Note: LOWERCASE transformation will normalize case
-```
+### 5. php2shell-Temporary-Multipart-Block (if enable_multipart_block = true)
 
-### Test 4: passthru() Detection
-```bash
-curl -v "http://your-domain.com/api/cmd?cmd=passthru(id)"
-# Expected: 403 Forbidden
-```
+    curl -s -o /dev/null -w "%{http_code}\n" -F "name=value" "$DOMAIN/"
+    # Expected: match (any multipart request)
 
-### Test 5: Legitimate Request (Should be ALLOWED)
-```bash
-curl -v "http://your-domain.com/api/search?q=how+to+use+system+tools"
-# Expected: 200 OK
-# Note: "system" as a keyword ≠ "system(" function call
-```
+### 6. Legitimate requests
 
-### Test 6: Multiple Parameters
-```bash
-curl -v "http://your-domain.com/api/cmd?param1=test&cmd=system(whoami)&param2=value"
-# Expected: 403 Forbidden
-```
+    curl -s -o /dev/null -w "%{http_code}\n" "$DOMAIN/?search=normal+query"
+    # Expected: allowed
 
-═══════════════════════════════════════════════════════════════════════════════
+    curl -s -o /dev/null -w "%{http_code}\n" -d "name=value" "$DOMAIN/"
+    # Expected: allowed (small urlencoded form)
 
-## Bash Script for Batch Testing
+===============================================================================
 
-```bash
-#!/bin/bash
-# WAF Testing Script
+## Checking matches
 
-DOMAIN="your-domain.com"
-RULE="BlockSuspiciousRCEPatterns"
-EXPECTED_BLOCK="403"
+    WAF_ARN="$(cd terraform && terraform output -raw web_acl_arn)"
 
-# Color output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+    for RULE in php2shell-UserAgent-Block php2shell-Exploit-Boundary-Block \
+                php2shell-Upload-Progress-Block php2shell-Oversize-Body-Block \
+                php2shell-Temporary-Multipart-Block; do
+      echo "== $RULE"
+      aws wafv2 get-sampled-requests \
+        --web-acl-arn "$WAF_ARN" \
+        --rule-metric-name "$RULE" \
+        --scope REGIONAL \
+        --time-window StartTime=$(date -u -d '10 minutes ago' +%s),EndTime=$(date -u +%s) \
+        --max-items 10 \
+        --query 'SampledRequests[].[Action,Request.Method,Request.URI]' --output text
+    done
 
-# Test cases
-declare -a TESTS=(
-    "http://$DOMAIN/api/cmd?action=system(whoami):BLOCK"
-    "http://$DOMAIN/api/cmd?action=system%28whoami%29:BLOCK"
-    "http://$DOMAIN/api/cmd?action=System(whoami):BLOCK"
-    "http://$DOMAIN/api/cmd?func=passthru(ls):BLOCK"
-    "http://$DOMAIN/api/search?q=normal+query:ALLOW"
-    "http://$DOMAIN/api/products?id=123:ALLOW"
-)
+Sampled requests can take a few minutes to appear.
 
-echo "====================================="
-echo "AWS WAF Testing Suite"
-echo "Domain: $DOMAIN"
-echo "====================================="
-
-PASSED=0
-FAILED=0
-
-for test in "${TESTS[@]}"; do
-    URL="${test%:*}"
-    EXPECTED="${test##*:}"
-
-    echo ""
-    echo -e "${YELLOW}Testing:${NC} $URL"
-    echo "Expected: $EXPECTED"
-
-    RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
-
-    if [ "$EXPECTED" = "BLOCK" ] && [ "$RESPONSE" = "403" ]; then
-        echo -e "${GREEN}✓ PASSED${NC} (Got 403)"
-        ((PASSED++))
-    elif [ "$EXPECTED" = "ALLOW" ] && [ "$RESPONSE" != "403" ]; then
-        echo -e "${GREEN}✓ PASSED${NC} (Got $RESPONSE)"
-        ((PASSED++))
-    else
-        echo -e "${RED}✗ FAILED${NC} (Got $RESPONSE)"
-        ((FAILED++))
-    fi
-done
-
-echo ""
-echo "====================================="
-echo "Results: $PASSED passed, $FAILED failed"
-echo "====================================="
-```
-
-═══════════════════════════════════════════════════════════════════════════════
-
-## Monitoring Test Results
-
-After running tests, verify WAF blocked them:
-
-```bash
-# Get WAF ARN
-WAF_ARN="arn:aws:wafv2:region:account:regional/webacl/name/id"
-
-# Get sampled blocked requests from last 10 minutes
-aws wafv2 get-sampled-requests \
-  --web-acl-arn $WAF_ARN \
-  --rule-metric-name BlockSuspiciousRCEPatternsMetric \
-  --scope REGIONAL \
-  --time-window StartTime=$(date -u -d '10 minutes ago' +%s),EndTime=$(date -u +%s) \
-  --max-items 100
-
-# Get metrics for the last hour
-aws cloudwatch get-metric-statistics \
-  --namespace AWS/WAFV2 \
-  --metric-name BlockedRequests \
-  --dimensions Name=WebACL,Value=php2shell-rce-mitigation-acl \
-  --start-time $(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%S) \
-  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
-  --period 300 \
-  --statistics Sum
-```
-
-═══════════════════════════════════════════════════════════════════════════════
-
-## Expected CloudWatch Log Entry
-
-When a payload is blocked, you should see a log entry like:
-
-```json
-{
-  "timestamp": 1698079205000,
-  "formatVersion": 1,
-  "webaclId": "arn:aws:wafv2:region:account:regional/webacl/php2shell-rce-mitigation-acl/...",
-  "terminatingRuleId": "BlockSuspiciousRCEPatterns",
-  "terminatingRuleType": "REGULAR",
-  "action": "BLOCK",
-  "httpSourceName": "ALB",
-  "httpRequest": {
-    "clientIp": "203.0.113.42",
-    "country": "US",
-    "uri": "/api/cmd?action=system(whoami)",
-    "args": "action=system(whoami)",
-    "httpMethod": "GET",
-    "httpVersion": "HTTP/1.1"
-  },
-  "ruleGroupList": [],
-  "rateBasedStatementList": [],
-  "nonTerminatingMatchingStatements": [],
-  "httpSourceId": "1-...-..."
-}
-```
-
-═══════════════════════════════════════════════════════════════════════════════
+===============================================================================
 
 ## Troubleshooting
 
-### False Positives (Legitimate Traffic Blocked)
+### Request not matched
 
-If legitimate requests are being blocked:
+1. Check the Web ACL is associated with the resource you are testing
+2. Check the optional rule is enabled in terraform.tfvars
+3. Body rules only see the first 8 KB on ALB (16 KB on CloudFront/API Gateway by default)
+4. A proxy or CDN in front of the WAF may rewrite headers or bodies
 
-1. Check the blocked URI patterns in CloudWatch Logs
-2. Identify legitimate uses of blocked keywords
-3. Create an allowlist rule with HIGHER priority (lower number)
-4. Document the exception with reason
+### Legitimate traffic matched
 
-Example: If /api/system-status legitimately has "system" in the URI:
+1. Review the sampled requests for the rule
+2. Disable enable_multipart_block or enable_oversize_body_block on apps that accept uploads
+3. Or add an allow rule with a lower priority number for the specific upload path
 
-```hcl
-rule {
-  name     = "AllowSystemStatusEndpoint"
-  priority = 0  # Higher priority than blocking rule
+===============================================================================
 
-  action {
-    allow {}
-  }
-
-  statement {
-    byte_match_statement {
-      search_string       = "/api/system-status"
-      position_constraint = "STARTS_WITH"
-      field_to_match {
-        uri_path {}
-      }
-    }
-  }
-}
-```
-
-### False Negatives (Attack Not Detected)
-
-If an attack payload is NOT being blocked:
-
-1. Check if the pattern matches byte-for-byte (case sensitive BEFORE transformations)
-2. Verify transformations are applied correctly
-3. Check if the payload is in a different field (headers vs query string)
-4. Consider advanced encoding techniques
-
-### CloudWatch Logs Not Appearing
-
-1. Verify WAF logging is enabled
-2. Check CloudWatch Log Group permissions
-3. Ensure sampled_requests_enabled = true in visibility_config
-4. Wait a few minutes for logs to propagate
-
-═══════════════════════════════════════════════════════════════════════════════
-
-## Performance Testing
-
-Test WAF impact on response times:
-
-```bash
-#!/bin/bash
-# Simple performance test
-
-DOMAIN="your-domain.com"
-ITERATIONS=100
-
-echo "Running $ITERATIONS requests to measure latency..."
-
-for i in $(seq 1 $ITERATIONS); do
-    START=$(date +%s%N)
-    curl -s -o /dev/null "http://$DOMAIN/api/products"
-    END=$(date +%s%N)
-    DURATION=$(( (END - START) / 1000000 ))
-    echo "Request $i: ${DURATION}ms"
-done
-```
-
-Expected: <50ms per request (WAF overhead typically <10ms)
-
-═══════════════════════════════════════════════════════════════════════════════
-
-## Legal Notice
-
-⚠️ This file is provided for authorized security testing ONLY.
-
-Unauthorized access to computer systems is illegal under:
-- Computer Fraud and Abuse Act (CFAA) in the US
-- Computer Misuse Act 1990 in the UK
-- Similar laws in other jurisdictions
-
-Always obtain written authorization before:
-- Testing on production systems
-- Testing on systems you don't own
-- Penetration testing of any kind
-
-═══════════════════════════════════════════════════════════════════════════════
-
-Last Updated: 2026-10-23
-Version: 1.0
-
+Last updated: 2026-10-23

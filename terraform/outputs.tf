@@ -25,10 +25,10 @@ output "cloudwatch_metric_name" {
 
 output "associate_with_alb_command" {
   description = "CLI command to associate WAF with an Application Load Balancer"
-  value       = "aws wafv2 associate-web-acl --web-acl-arn ${aws_wafv2_web_acl.rce_mitigation_acl.arn} --resource-arn <ALB_ARN> --region ${data.aws_caller_identity.current.account_id} --region ${data.aws_region_name.current.name}"
+  value       = "aws wafv2 associate-web-acl --web-acl-arn ${aws_wafv2_web_acl.rce_mitigation_acl.arn} --resource-arn <ALB_ARN> --region ${data.aws_region.current.name}"
 }
 
 output "associate_with_api_gateway_command" {
   description = "CLI command to associate WAF with an API Gateway"
-  value       = "aws wafv2 associate-web-acl --web-acl-arn ${aws_wafv2_web_acl.rce_mitigation_acl.arn} --resource-arn arn:aws:apigateway:<region>::/restapis/<api-id>/stages/<stage-name> --region ${data.aws_region_name.current.name}"
+  value       = "aws wafv2 associate-web-acl --web-acl-arn ${aws_wafv2_web_acl.rce_mitigation_acl.arn} --resource-arn arn:aws:apigateway:${data.aws_region.current.name}::/restapis/<api-id>/stages/<stage-name> --region ${data.aws_region.current.name}"
 }
