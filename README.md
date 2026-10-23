@@ -316,13 +316,8 @@ See [examples/payloads.txt](examples/payloads.txt) for more test cases.
 
 ## Additional resources
 
-- [AWS: Using AWS WAF to apply mitigations for PHP2Shell](https://aws.amazon.com/blogs/security/using-aws-waf-to-apply-mitigations-for-php2shell-rce-vulnerabilities-cve-2026-109618-and-cve-2026-109619/)
-- [Datadog Security Labs: PHP2Shell detection, analysis, and remediation](https://securitylabs.datadoghq.com/articles/php2shell-critical-vulnerabilities-in-php/)
-- [Sansec: PHP2Shell](https://sansec.io/research/php2shell)
-- [watchTowr: PHP2Shell FAQ](https://watchtowr.com/intelligence/php-cve-2026-109618-faq/)
-- [Red Hat: CVE-2026-109618](https://access.redhat.com/security/cve/cve-2026-109618)
-- [AWS WAF developer guide](https://docs.aws.amazon.com/waf/latest/developerguide/)
-
+- [CVE-2026-109618](https://nvd.nist.gov/vuln/detail/cve-2026-109618)
+- [CVE-2026-109619](https://nvd.nist.gov/vuln/detail/cve-2026-109619)
 ---
 
 ## Connect and discuss
@@ -330,10 +325,6 @@ See [examples/payloads.txt](examples/payloads.txt) for more test cases.
 This project was inspired by real-world security challenges. If you found this helpful:
 
 - **Star this repository** on GitHub
-- **Share on LinkedIn** (original post available in [docs/LINKEDIN_POST.md](docs/LINKEDIN_POST.md))
-- **Open an issue** with questions or improvements
-- **Report security concerns** responsibly to your AWS account team
-
 ---
 
 ## Quick reference
